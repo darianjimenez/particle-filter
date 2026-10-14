@@ -19,6 +19,7 @@ from occupancy_field import OccupancyField
 from helper_functions import TFHelper
 from rclpy.qos import qos_profile_sensor_data
 from angle_helpers import quaternion_from_euler
+from helper_functions import draw_random_sample
 
 class Particle(object):
     """ Represents a hypothesis (particle) of the robot's pose consisting of x,y and theta (yaw)
@@ -81,7 +82,9 @@ class ParticleFilter(Node):
         self.d_thresh = 0.2             # the amount of linear movement before performing an update
         self.a_thresh = math.pi/6       # the amount of angular movement before performing an update
 
-        # TODO: define additional constants if needed
+        self.xy_noise = 0.05 # meters, spread of starting cloud w/ noise
+        self.theta_noise = 0.05 # radians
+        self.laser_sigma = 0.1 # meters, how far can beam miss
 
         # pose_listener responds to selection of a new approximate robot location (for instance using rviz)
         self.create_subscription(PoseWithCovarianceStamped, 'initialpose', self.update_initial_pose, 10)
@@ -115,7 +118,9 @@ class ParticleFilter(Node):
         if self.last_scan_timestamp is None:
             return
         postdated_timestamp = Time.from_msg(self.last_scan_timestamp) + Duration(seconds=0.1)
-        self.transform_helper.send_last_map_to_odom_transform(self.map_frame, self.odom_frame, postdated_timestamp)
+        self.transform_helper.send_last_map_to_odom_transform(self.map_frame,
+                                                              self.odom_frame,
+                                                              postdated_timestamp)
 
     def loop_wrapper(self):
         """ This function takes care of calling the run_loop function repeatedly.
@@ -145,8 +150,9 @@ class ParticleFilter(Node):
                 # we will never get this transform, since it is before our oldest one
                 self.scan_to_process = None
             return
-        
-        (r, theta) = self.transform_helper.convert_scan_to_polar_in_robot_frame(msg, self.base_frame)
+
+        (r, theta) = self.transform_helper.convert_scan_to_polar_in_robot_frame(msg, 
+                                                                                self.base_frame)
         print("r[0]={0}, theta[0]={1}".format(r[0], theta[0]))
         # clear the current scan so that we can process the next one
         self.scan_to_process = None
@@ -164,8 +170,8 @@ class ParticleFilter(Node):
             # we have moved far enough to do an update!
             self.update_particles_with_odom()    # update based on odometry
             self.update_particles_with_laser(r, theta)   # update based on laser scan
-            self.update_robot_pose()                # update robot's pose based on particles
-            self.resample_particles()               # resample particles to focus on areas of high density
+            self.update_robot_pose()          # update robot's pose based on particles
+            self.resample_particles()         # resample particles to focus on areas of high density
         # publish particles (so things like rviz can see them)
         self.publish_particles(msg.header.stamp)
 
@@ -187,6 +193,12 @@ class ParticleFilter(Node):
         # TODO: assign the latest pose into self.robot_pose as a geometry_msgs.Pose object
         # just to get started we will fix the robot's pose to always be at the origin
         self.robot_pose = Pose()
+
+        # use particle with highest weight as guess (update later)
+        if self.particle_cloud:
+            best = max(self.particle_cloud, key=lambda p: p.w)
+            self.robot_pose = best.as_pose()
+
         if hasattr(self, 'odom_pose'):
             self.transform_helper.fix_map_to_odom_transform(self.robot_pose,
                                                             self.odom_pose)
@@ -213,24 +225,52 @@ class ParticleFilter(Node):
             return
 
         # TODO: modify particles using delta
+        # Turn delta into distance forward/sideways relative to robot initial position
+        # Move each particle proportionally relative to its original position
+        old_theta = old_odom_xy_theta[2]
+        forward = math.cos(old_theta) * delta[0] + math.sin(old_theta) * delta[1]
+        sideways = -math.sin(old_theta) * delta[0] + math.cos(old_theta) * delta[1]
+        turn = self.transform_helper.angle_normalize(delta[2])
+
+        for p in self.particle_cloud:
+            # rotate forward/sideways into particles direction + noise
+            p.x += math.cos(p.theta) * forward - math.sin(p.theta) * sideways + np.random.normal(0, self.xy_noise)
+            p.y += math.sin(p.theta) * forward + math.cos(p.theta) * sideways + np.random.normal(0, self.xy_noise)
+            p.theta = self.transform_helper.angle_normalize(
+                p.theta + turn + np.random.normal(0, self.theta_noise))
 
     def resample_particles(self):
         """ Resample the particles according to the new particle weights.
             The weights stored with each particle should define the probability that a particular
-            particle is selected in the resampling step.  You may want to make use of the given helper
-            function draw_random_sample in helper_functions.py.
+            particle is selected in the resampling step. You may want to make use of the given
+            helper function draw_random_sample in helper_functions.py.
         """
         # make sure the distribution is normalized
         self.normalize_particles()
         # TODO: fill out the rest of the implementation
+        # Pick particles in proportion to weight
+        weights = [p.w for p in self.particle_cloud]
+        self.particle_cloud = draw_random_sample(self.particle_cloud, weights, self.n_particles)
+        for p in self.particle_cloud:
+            p.w = 1.0
 
     def update_particles_with_laser(self, r, theta):
         """ Updates the particle weights in response to the scan data
             r: the distance readings to obstacles
             theta: the angle relative to the robot frame for each corresponding reading 
         """
-        # TODO: implement this
-        pass
+        for p in self.particle_cloud:
+            p.w = 0.0
+            for i in range(0, len(r), 10): # use every 10th bean
+                if not math.isfinite(r[i]) or r[i] <= 0:
+                    continue # skip bad recordings
+                end_x = p.x + r[i] * math.cos(p.theta + theta[i])
+                end_y = p.y + r[i] * math.sin(p.theta + theta[i])
+                d = self.occupancy_field.get_closest_obstacle_distance(end_x, end_y)
+                if math.isfinite(d):
+                    # near wall add almost 1, far away adds almost 0
+                    p.w += math.exp(-d**2 / (2 * self.laser_sigma**2))
+        self.normalize_particles()
 
     def update_initial_pose(self, msg):
         """ Callback function to handle re-initializing the particle filter based on a pose estimate.
@@ -242,19 +282,28 @@ class ParticleFilter(Node):
         """ Initialize the particle cloud.
             Arguments
             xy_theta: a triple consisting of the mean x, y, and theta (yaw) to initialize the
-                      particle cloud around.  If this input is omitted, the odometry will be used """
+                      particle cloud around. If this input is omitted, the odometry will be used """
         if xy_theta is None:
             xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose)
         self.particle_cloud = []
-        # TODO create particles
+
+        for i in range(self.n_particles):
+            x = np.random.normal(xy_theta[0], self.xy_noise)
+            y = np.random.normal(xy_theta[1], self.xy_noise)
+            theta = np.random.normal(xy_theta[2], self.theta_noise)
+            self.particle_cloud.append(Particle(x, y, theta))
 
         self.normalize_particles()
         self.update_robot_pose()
 
     def normalize_particles(self):
         """ Make sure the particle weights define a valid distribution (i.e. sum to 1.0) """
-        # TODO: implement this
-        pass
+        total = sum(p.w for p in self.particle_cloud)
+        for p in self.particle_cloud:
+            if total > 0:
+                p.w = p.w / total
+            else:
+                p.w = 1.0 / len(self.particle_cloud) # treat all weights equally
 
     def publish_particles(self, timestamp):
         msg = ParticleCloud()
@@ -267,7 +316,7 @@ class ParticleFilter(Node):
     def scan_received(self, msg):
         self.last_scan_timestamp = msg.header.stamp
         # we throw away scans until we are done processing the previous scan
-        # self.scan_to_process is set to None in the run_loop 
+        # self.scan_to_process is set to None in the run_loop
         if self.scan_to_process is None:
             self.scan_to_process = msg
 

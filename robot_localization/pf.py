@@ -10,9 +10,10 @@ from std_msgs.msg import Header
 from sensor_msgs.msg import LaserScan
 from nav2_msgs.msg import ParticleCloud, Particle
 from nav2_msgs.msg import Particle as Nav2Particle
-from geometry_msgs.msg import PoseWithCovarianceStamped, Pose, Point, Quaternion
+from geometry_msgs.msg import PoseWithCovarianceStamped, Pose, Point, Quaternion, Twist
 from rclpy.duration import Duration
 import math
+from math import pi
 import time
 import numpy as np
 from occupancy_field import OccupancyField
@@ -84,6 +85,7 @@ class ParticleFilter(Node):
         self.scan_topic = "scan"  # the topic where we will get laser scans from
 
         self.n_particles = 300  # the number of particles to use
+        self.time_per_time = 0.5
 
         self.d_thresh = 0.2  # the amount of linear movement before performing an update
         self.a_thresh = (
@@ -106,6 +108,12 @@ class ParticleFilter(Node):
 
         # laser_subscriber listens for data from the lidar
         self.create_subscription(LaserScan, self.scan_topic, self.scan_received, 10)
+
+        self.time_per_turn = 0.5  # Run every .1 seconds
+        self.linear_distance = 0.05  # Distance travelled each loop
+
+        # Publish movement commands
+        self.vel_pub = self.create_publisher(Twist, "/cmd_vel", 10)
 
         # this is used to keep track of the timestamps coming from bag files
         # knowing this information helps us set the timestamp of our map -> odom
@@ -136,6 +144,15 @@ class ParticleFilter(Node):
             self.map_frame, self.odom_frame, postdated_timestamp
         )
 
+    def move_robot(self):
+        msg = Twist()
+
+        # Set forward velocity
+        msg.linear.x = self.linear_distance / self.time_per_turn
+
+        # Set turning velocity
+        self.vel_pub.publish(msg)
+
     def loop_wrapper(self):
         """This function takes care of calling the run_loop function repeatedly.
         We are using a separate thread to run the loop_wrapper to work around
@@ -151,6 +168,8 @@ class ParticleFilter(Node):
 
         You do not need to modify this function, but it is helpful to understand it.
         """
+        self.move_robot()
+        # msg2 = Twist()
         if self.scan_to_process is None:
             return
         msg = self.scan_to_process
@@ -159,12 +178,14 @@ class ParticleFilter(Node):
             self.odom_frame, self.base_frame, msg.header.stamp
         )
 
-        print(f"The new pose is {new_pose}")
+        # print(f"The changing time is {delta_t}")
+        # print(f"The new pose is {delta_t}")
         if new_pose is None:
             # we were unable to get the pose of the robot corresponding to the scan timestamp
             if delta_t is not None and delta_t < Duration(seconds=0.0):
                 # we will never get this transform, since it is before our oldest one
                 self.scan_to_process = None
+                print("hello 2")
             return
 
         r, theta = self.transform_helper.convert_scan_to_polar_in_robot_frame(
@@ -185,7 +206,7 @@ class ParticleFilter(Node):
         elif not self.particle_cloud:
             # now that we have all of the necessary transforms we can update the particle cloud
             self.initialize_particle_cloud(msg.header.stamp)
-        elif True:
+        elif self.moved_far_enough_to_update(new_odom_xy_theta):
             # we have moved far enough to do an update!
             self.update_particles_with_odom()  # update based on odometry
             self.update_particles_with_laser(r, theta)  # update based on laser scan
@@ -193,6 +214,8 @@ class ParticleFilter(Node):
             self.resample_particles()  # resample particles to focus on areas of high density
         # publish particles (so things like rviz can see them)
         self.publish_particles(msg.header.stamp)
+        # msg2.linear.x = 0.1 / self.time_per_time
+        # self.vel_pub.publish(msg2)
 
     def moved_far_enough_to_update(self, new_odom_xy_theta):
         return (
@@ -368,10 +391,41 @@ class ParticleFilter(Node):
             self.scan_to_process = msg
 
 
+class MovementControl(Node):
+    def __init__(self):
+        super().__init__("movement_control")
+        self.time_per_turn = 0.5  # Run every .1 seconds
+        self.linear_distance = 0.05  # Distance travelled each loop
+
+        # Publish movement commands
+        self.vel_pub = self.create_publisher(Twist, "/cmd_vel", 10)
+
+        self.timer = self.create_timer(self.time_per_turn, self.run_loop)
+
+    def run_loop(self):
+        msg = Twist()
+
+        # Set forward velocity
+        msg.linear.x = self.linear_distance / self.time_per_turn
+
+        # Set turning velocity
+        self.vel_pub.publish(msg)
+
+
 def main(args=None):
     rclpy.init()
     n = ParticleFilter()
-    rclpy.spin(n)
+    # s = MovementControl()
+
+    thread1 = Thread(target=rclpy.spin, args=(n,))
+    # thread2 = Thread(target=rclpy.spin, args=(s,))
+
+    # 2. Start execution
+    thread1.start()
+    # thread2.start()
+
+    thread1.join()
+    # thread2.join()
     rclpy.shutdown()
 
 

@@ -21,6 +21,7 @@ from helper_functions import TFHelper
 from rclpy.qos import qos_profile_sensor_data
 from angle_helpers import quaternion_from_euler
 from helper_functions import draw_random_sample
+from scipy import stats
 
 
 class Particle(object):
@@ -84,7 +85,7 @@ class ParticleFilter(Node):
         self.odom_frame = "odom"  # the name of the odometry coordinate frame
         self.scan_topic = "scan"  # the topic where we will get laser scans from
 
-        self.n_particles = 300  # the number of particles to use
+        self.n_particles = 400  # the number of particles to use
         self.time_per_time = 0.5
 
         self.d_thresh = 0.2  # the amount of linear movement before performing an update
@@ -92,9 +93,9 @@ class ParticleFilter(Node):
             math.pi / 6
         )  # the amount of angular movement before performing an update
 
-        self.xy_noise = 0.5  # meters, spread of starting cloud w/ noise
-        self.theta_noise = 0.2  # radians
-        self.laser_sigma = 0.1  # meters, how far can beam miss
+        self.xy_noise = 0.3  # meters, spread of starting cloud w/ noise
+        self.theta_noise = 0.1  # radians
+        self.laser_sigma = 0.05  # meters, how far can beam miss
 
         # pose_listener responds to selection of a new approximate robot location (for instance using rviz)
         self.create_subscription(
@@ -109,7 +110,7 @@ class ParticleFilter(Node):
         # laser_subscriber listens for data from the lidar
         self.create_subscription(LaserScan, self.scan_topic, self.scan_received, 10)
 
-        self.time_per_turn = 0.5  # Run every .1 seconds
+        self.time_per_turn = 1  # Run every .1 seconds
         self.linear_distance = 0.05  # Distance travelled each loop
 
         # Publish movement commands
@@ -168,7 +169,7 @@ class ParticleFilter(Node):
 
         You do not need to modify this function, but it is helpful to understand it.
         """
-        self.move_robot()
+        # self.move_robot()
         # msg2 = Twist()
         if self.scan_to_process is None:
             return
@@ -191,7 +192,7 @@ class ParticleFilter(Node):
         r, theta = self.transform_helper.convert_scan_to_polar_in_robot_frame(
             msg, self.base_frame
         )
-        print("r[0]={0}, theta[0]={1}".format(r[0], theta[0]))
+        # print("r[0]={0}, theta[0]={1}".format(r[0], theta[0]))
         # clear the current scan so that we can process the next one
         self.scan_to_process = None
 
@@ -199,7 +200,7 @@ class ParticleFilter(Node):
         new_odom_xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(
             self.odom_pose
         )
-        print("x: {0}, y: {1}, yaw: {2}".format(*new_odom_xy_theta))
+        # print("x: {0}, y: {1}, yaw: {2}".format(*new_odom_xy_theta))
 
         if not self.current_odom_xy_theta:
             self.current_odom_xy_theta = new_odom_xy_theta
@@ -303,6 +304,38 @@ class ParticleFilter(Node):
                 p.theta + turn + np.random.normal(0, self.theta_noise)
             )
 
+    def calculate_gaussian(self, weights):
+        print(f"The sum of weights is: {sum(weights)}")
+        weights_mean = np.mean(weights)
+        weights_sd = np.std(weights, ddof=1)
+        gaussian_distribution = stats.norm.rvs(
+            loc=weights_mean, scale=weights_sd / 10, size=self.n_particles
+        )
+
+        print(
+            f"The mean of the gaussian weights is: {weights_mean} and the standard deviation is: {weights_sd} "
+        )
+
+        return gaussian_distribution
+
+    def calculate_gamma(self, weights):
+        print(f"The sum of weights is: {sum(weights)}")
+        weights_mean = np.mean(weights)
+        weights_sd = np.std(weights, ddof=1) / 10
+
+        alpha = (weights_mean / weights_sd) ** 2
+        scale = (weights_sd**2) / weights_mean
+
+        gamma_distribution = stats.gamma.rvs(
+            a=alpha, scale=scale, size=self.n_particles
+        )
+
+        print(
+            f"The mean of the gamma weights is: {weights_mean} and the standard deviation is: {weights_sd} "
+        )
+
+        return gamma_distribution
+
     def resample_particles(self):
         """Resample the particles according to the new particle weights.
         The weights stored with each particle should define the probability that a particular
@@ -314,11 +347,19 @@ class ParticleFilter(Node):
         # TODO: fill out the rest of the implementation
         # Pick particles in proportion to weight
         weights = [p.w for p in self.particle_cloud]
+        print(f"The length of weights is {len(weights)}, and type is {type(weights)}")
+
+        gamma_distribution = self.calculate_gamma(weights)
+        # print(f"original weights: {weights}")
+        # print(self.particle_cloud)
         self.particle_cloud = draw_random_sample(
-            self.particle_cloud, weights, self.n_particles
+            self.particle_cloud, gamma_distribution, self.n_particles
         )
-        for p in self.particle_cloud:
-            p.w = 1.0
+
+        # weights = [p.w for p in self.particle_cloud]
+        # print(f"original weights: {weights}")
+        # for p in self.particle_cloud:
+        #     p.w = 1.0
 
     def update_particles_with_laser(self, r, theta):
         """Updates the particle weights in response to the scan data

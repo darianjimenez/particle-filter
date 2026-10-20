@@ -36,7 +36,8 @@ def draw_random_sample(choices, probabilities, n):
     values = np.array(range(len(choices)))
     probs = np.array(probabilities)
     bins = np.add.accumulate(probs)
-    inds = values[np.digitize(random_sample(n), bins)]
+    digitized_inds = np.digitize(random_sample(n), bins)
+    inds = values[np.clip(digitized_inds, 0, len(values) - 1)]
     samples = []
     for i in inds:
         samples.append(deepcopy(choices[int(i)]))

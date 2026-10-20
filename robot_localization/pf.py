@@ -93,9 +93,9 @@ class ParticleFilter(Node):
             math.pi / 6
         )  # the amount of angular movement before performing an update
 
-        self.xy_noise = 0.3  # meters, spread of starting cloud w/ noise
-        self.theta_noise = 0.1  # radians
-        self.laser_sigma = 0.05  # meters, how far can beam miss
+        self.xy_noise = 0.5  # meters, spread of starting cloud w/ noise
+        self.theta_noise = 0.2  # radians
+        self.laser_sigma = 0.2  # meters, how far can beam miss
 
         # pose_listener responds to selection of a new approximate robot location (for instance using rviz)
         self.create_subscription(
@@ -321,7 +321,7 @@ class ParticleFilter(Node):
     def calculate_gamma(self, weights):
         print(f"The sum of weights is: {sum(weights)}")
         weights_mean = np.mean(weights)
-        weights_sd = np.std(weights, ddof=1) / 10
+        weights_sd = np.std(weights, ddof=1) / 100
 
         alpha = (weights_mean / weights_sd) ** 2
         scale = (weights_sd**2) / weights_mean
@@ -345,16 +345,60 @@ class ParticleFilter(Node):
         # make sure the distribution is normalized
         self.normalize_particles()
         # TODO: fill out the rest of the implementation
-        # Pick particles in proportion to weight
-        weights = [p.w for p in self.particle_cloud]
-        print(f"The length of weights is {len(weights)}, and type is {type(weights)}")
 
-        gamma_distribution = self.calculate_gamma(weights)
+        # pseudocode implementation
+        # 1. get each list as a numpy array
+        # 2. do dot product of weights and each value
+        # 3. find standard deviation
+
+        # get lists of particles
+        weights = np.asarray([p.w for p in self.particle_cloud])
+        particles_x = np.asarray([p.x for p in self.particle_cloud])
+        particles_y = np.asarray([p.y for p in self.particle_cloud])
+        particles_theta = np.asarray([p.theta for p in self.particle_cloud])
+
+        # transform theta array to positive
+        particles_theta = particles_theta % (np.pi * 2)
+
+        # calculate mean
+        particles_x_mean = np.dot(weights, particles_x)
+        particles_y_mean = np.dot(weights, particles_y)
+        particles_theta_mean = np.dot(weights, particles_theta)
+
+        # calculate std deviation
+        particles_x_weighted_std = np.sqrt(
+            np.average((particles_x - particles_x_mean) ** 2, weights=weights)
+        )
+        particles_y_weighted_std = np.sqrt(
+            np.average((particles_y - particles_y_mean) ** 2, weights=weights)
+        )
+        particles_theta_weighted_std = np.sqrt(
+            np.average((particles_theta - particles_theta_mean) ** 2, weights=weights)
+        )
+
+        # THIS IS INCORRECT NEEDS FIXING
+
+        # calculate the best point using weighted average
+        # calculate weighted standard deviation
+
+        self.particle_cloud.clear()
+
+        for i in range(self.n_particles):
+            x = np.random.normal(particles_x_mean, particles_x_weighted_std / 2)
+            y = np.random.normal(particles_y_mean, particles_y_weighted_std / 2)
+            theta = np.random.normal(
+                particles_theta_mean, particles_theta_weighted_std / 2
+            )
+            self.particle_cloud.append(Particle(x, y, theta))
+
+        self.normalize_particles()
+
         # print(f"original weights: {weights}")
         # print(self.particle_cloud)
-        self.particle_cloud = draw_random_sample(
-            self.particle_cloud, gamma_distribution, self.n_particles
-        )
+        # print(f"The theta particles are {particles_theta}")
+        # self.particle_cloud = draw_random_sample(
+        #     self.particle_cloud, weights, self.n_particles
+        # )
 
         # weights = [p.w for p in self.particle_cloud]
         # print(f"original weights: {weights}")
@@ -368,7 +412,7 @@ class ParticleFilter(Node):
         """
         for p in self.particle_cloud:
             p.w = 0.0
-            for i in range(0, len(r), 10):  # use every 10th bean
+            for i in range(0, len(r)):  # use every 10th bean
                 if not math.isfinite(r[i]) or r[i] <= 0:
                     continue  # skip bad recordings
                 end_x = p.x + r[i] * math.cos(p.theta + theta[i])

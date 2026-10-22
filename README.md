@@ -8,3 +8,15 @@ For our state estimation and localization project, we designed a particle filter
 
 ![Particle Filter Algorithm](particle_filter_algorithm.drawio.png)
 ## Algorithm Overview
+
+## Implementation Design
+
+## Unit Test Design and Integration
+
+## Experimental Design
+
+# Challenges and Next Steps
+
+# Learning Objectives and Final Takeaways
+
+# How To Run

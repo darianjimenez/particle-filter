@@ -171,7 +171,7 @@ class ParticleFilter(Node):
 
         You do not need to modify this function, but it is helpful to understand it.
         """
-        self.move_robot()
+        # self.move_robot()
         # msg2 = Twist()
         if self.scan_to_process is None:
             return
@@ -488,9 +488,9 @@ class ParticleFilter(Node):
         self.particle_cloud.clear()
 
         for i in range(self.n_particles):
-            x = np.random.gamma(particles_x_alpha, particles_x_scale)
-            y = np.random.gamma(particles_y_alpha, particles_y_scale)
-            theta = np.random.gamma(particles_theta_alpha, particles_theta_scale)
+            x = np.random.normal(particles_x_mean, particles_x_weighted_std)
+            y = np.random.normal(particles_y_mean, particles_y_weighted_std)
+            theta = np.random.normal(particles_theta_mean, particles_theta_weighted_std)
             self.particle_cloud.append(Particle(x, y, theta))
 
         self.normalize_particles()

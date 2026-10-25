@@ -6,6 +6,10 @@ For our state estimation and localization project, we designed a particle filter
 
 ## Approach to State Estimation
 
+
+
+### Algorithm Overview
+![Particle Filter Algorithm](particle_filter_algorithm.drawio.png)
 For our state estimation algorithm, we initialized a particle cloud of random N particles by using a normal distribution to generate x, y, and theta values, based on fixed noise values for the x-y and theta planes. Once the Neato detects movement (which is thresholded at X meters) in the odometry frame, our algorithm will calculate the change in Neato movement in the odometry frame and apply that movement change to every particle. 
 
 #### INCLUDE ODOMETRY CALCULATION
@@ -18,13 +22,9 @@ Once we calculate the weight of each particle, we estimate the most likely posit
 
 After completing state estimation of the Neato, we resample our particles by selecting 50 particles with the highest weights. Then, we apply Gaussian Kernel Density Estimation (KDE) on these resampled particles to generalize a probability distribution of these highest weights. Finally, we generate a new set of N particles using the Gaussian KDE probability distribution.
 
+### Implementation Design
 
-![Particle Filter Algorithm](particle_filter_algorithm.drawio.png)
-## Algorithm Overview
-
-## Implementation Design
-
-### Particle Filter Algorithm
+### Design Decision 1: Particle Resampling
 One key design decision that we made was to use a Gaussian KDE to generate a new set of N particles. Initially, we used the calculated weights as a probability distribution to generate a new set of N particles. While this solution partially worked, we saw that the resampled particle cloud became too noisy–which caused the Neato to inaccurately estimate its position. 
 
 To reduce noise, we then decided to generalize the distribution of particle weights into a Gaussian distribution, utilizing the mean and standard deviation of the particle weights. However, dynamically controlling the shape of the Gaussian distribution through standard deviation became a non-trivial problem. When we used the actual standard deviation of the weights, the resampling method created too much noise, but when we constrained the standard deviation to a smaller value, we found that the Neato would estimate the wrong pose and move in the wrong direction. We also tried to use a Gamma distribution – but equally, we came across issues tuning the alpha and beta parameters. 

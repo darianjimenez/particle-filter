@@ -99,6 +99,10 @@ class ParticleFilter(Node):
         self.theta_noise = 0.05  # radians
         self.laser_sigma = 0.5  # meters, how far can beam miss
 
+        # Noise for movement updates
+        self.motion_xy_noise = 0.03
+        self.motion_theta_noise = 0.02
+
         # pose_listener responds to selection of a new approximate robot location (for instance using rviz)
         self.create_subscription(
             PoseWithCovarianceStamped, "initialpose", self.update_initial_pose, 10
@@ -295,15 +299,15 @@ class ParticleFilter(Node):
             p.x += (
                 math.cos(p.theta) * forward
                 - math.sin(p.theta) * sideways
-                + np.random.normal(0, self.xy_noise)
+                + np.random.normal(0, self.motion_xy_noise)
             )
             p.y += (
                 math.sin(p.theta) * forward
                 + math.cos(p.theta) * sideways
-                + np.random.normal(0, self.xy_noise)
+                + np.random.normal(0, self.motion_xy_noise)
             )
             p.theta = self.transform_helper.angle_normalize(
-                p.theta + turn + np.random.normal(0, self.theta_noise)
+                p.theta + turn + np.random.normal(0, self.motion_theta_noise)
             )
 
     def calculate_gaussian(self, weights):

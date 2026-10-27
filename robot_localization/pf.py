@@ -408,29 +408,37 @@ class ParticleFilter(Node):
         return particles_slice_2
 
     def resample_particles_v2(self):
-
-        oversampled_particle_cloud = self.sampling_strategy()
-        weights = np.asarray([p.w for p in oversampled_particle_cloud])
-        particles_x = np.asarray([p.x for p in oversampled_particle_cloud])
-        particles_y = np.asarray([p.y for p in oversampled_particle_cloud])
-        particles_theta = np.asarray([p.theta for p in oversampled_particle_cloud])
-
-        new_particles_x = list(self.gaussian_kde_sample(particles_x, weights))
-        new_particles_y = list(self.gaussian_kde_sample(particles_y, weights))
-        new_particles_theta = list(self.gaussian_kde_sample(particles_theta, weights))
-
-        print(new_particles_x)
-
-        self.particle_cloud.clear()
-        for i in range(self.n_particles):
-            print(f"i is currentl {i}")
-            p_x = new_particles_x[0][i]
-            p_y = new_particles_y[0][i]
-            p_theta = new_particles_theta[0][i]
-
-            self.particle_cloud.append(Particle(x=p_x, y=p_y, theta=p_theta))
-
         self.normalize_particles()
+        weights = [p.w for p in self.particle_cloud]
+        self.particle_cloud = draw_random_sample(
+            self.particle_cloud, weights, self.n_particles
+        )
+
+        for p in self.particle_cloud:
+            p.w = 1.0 / self.n_particles
+
+        # oversampled_particle_cloud = self.sampling_strategy()
+        # weights = np.asarray([p.w for p in oversampled_particle_cloud])
+        # particles_x = np.asarray([p.x for p in oversampled_particle_cloud])
+        # particles_y = np.asarray([p.y for p in oversampled_particle_cloud])
+        # particles_theta = np.asarray([p.theta for p in oversampled_particle_cloud])
+
+        # new_particles_x = list(self.gaussian_kde_sample(particles_x, weights))
+        # new_particles_y = list(self.gaussian_kde_sample(particles_y, weights))
+        # new_particles_theta = list(self.gaussian_kde_sample(particles_theta, weights))
+
+        # print(new_particles_x)
+
+        # self.particle_cloud.clear()
+        # for i in range(self.n_particles):
+        #     print(f"i is currentl {i}")
+        #     p_x = new_particles_x[0][i]
+        #     p_y = new_particles_y[0][i]
+        #     p_theta = new_particles_theta[0][i]
+
+        #     self.particle_cloud.append(Particle(x=p_x, y=p_y, theta=p_theta))
+
+        # self.normalize_particles()
 
     def resample_particles_failed(self):
         """Resample the particles according to the new particle weights.

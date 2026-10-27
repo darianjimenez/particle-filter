@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-For our state estimation and localization project, we designed a particle filter that uses the closest obstacle method to localize our Neato robot. Furthermore, our project leverages a Gaussian Kernel Density Estimation (KDE) to resample our particles. In broad strokes, our particle filter initializes a particle cloud of N particles, and as our Neato moves across the map, the particle filter calculates the change in odometry movement for each particle. Then, for each particle, our algorithm calculates the distance to the closest obstacle and compares against the LIDAR scan – assigning normalized weights based on these comparisons. Finally, we use our Gaussian KDE-based resampling approach to generate a set of new N particles.
+For our state estimation and localization project, we designed a particle filter that uses the closest obstacle method to localize our Neato robot. We also experimented with different resampling methods, including Gaussian KDE, before settling on standard weighted resampling. In broad strokes, our particle filter initializes a particle cloud of N particles, and as our Neato moves across the map, the particle filter calculates the change in odometry movement for each particle. Then, for each particle, our algorithm calculates the distance to the closest obstacle and compares against the LIDAR scan – assigning normalized weights based on these comparisons. Finally, we use our Gaussian KDE-based resampling approach to generate a set of new N particles.
 
 ## Approach to State Estimation
 
@@ -82,7 +82,8 @@ The 7 tests we implemented are:
 - LiDAR Weight Calculation: Verified that particles whose LiDAR measurements better match the wall (in simulation) receive higher weights
 - Zero-Weight Handling: Tested if the normalization function distributes equal weights when all weights are zero.
 - Rotation: Verified that a 90-degree rotation updates a particle's orientation, but not position 
-- Resampling: Verified that resampling generates 400 particles and favors the particle with the highest weight (all resampled particles should come from first particle with a weight of 1, all others have a weight of 0) 
+- Resampling: Verified that resampling generates 400 particles and favors the particle with the highest weight (all resampled particles should come from first particle with a weight of 1, all others have a weight of 0)
+- 
 These tests were very helpful in testing if the math was correct and actually helped us realize our initial KDE resampling implementation was incorrect since it failed the resampling unit test. Combining these tests with simulation and bagfile testing allowed us to properly implement our particle filter
 
 ## Experimental Design

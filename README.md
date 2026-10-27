@@ -15,18 +15,23 @@ For our state estimation algorithm, we initialized a particle cloud of random N 
 First, we calculate the change in the Neato's position and orientation between two odometry measurements:
 
 `Δx = x_new − x_old`
+
 `Δy = y_new − y_old`
+
 `Δθ = θ_new − θ_old`
 
 Next, we convert this into forward and sideways movement relative to its previous orientation:
 
 `forward = Δx × cos(θ_old) + Δy × sin(θ_old)`
+
 `sideways = −Δx × sin(θ_old) + Δy × cos(θ_old)`
 
 Finally, we can update each particle's position using its own orientation:
 
 `x_new = x_old + forward × cos(θ_p) − sideways × sin(θ_p) + noise_x`
+
 `y_new = y_old + forward × sin(θ_p) + sideways × cos(θ_p) + noise_y`
+
 `θ_new = θ_p + Δθ + noise_θ`
 
 θ_p represents the particle's orientation, and the noise terms represent Gaussian noise added to account for uncertainty in movement. We also normalize the resulting orientation to handle angle wraparound issues. We use 0.03 meters of positional noise and 0.02 radians of rotational noise.
@@ -40,16 +45,19 @@ After updating the particle positions, we use LiDAR measurements to calculate ho
 First we calculate the LiDAR endpoint where, for each particle, we calculate the location of an obstacle based on the LiDAR distance and angle. 
 
 `x_end = x_p + r × cos(θ_p + α)`
+
 `y_end = y_p + r × sin(θ_p + α)`
 
 In this case x_p and y_p are Particle position, θ_p is Particle orientation, r is LiDAR distance measurement, and α is LiDAR measurement angle
 
 Next, we calculate the distance (d) between the predicted LiDAR endpoint and the closest obstacle in the map.
+
 `score = exp(−d² / (2 × σ²))`
 
 Where d is the distance to the closest obstacle and σ = 0.25 meters (measurement uncertainty). A smaller distance results in a score closer to 1, while a larger distance results in a score closer to 0.
 
 Next we calculate particle weight by adding the scores from the selected LiDAR measurements:
+
 `particle_weight = score₁ + score₂ + score₃ + ... + scoreₙ`
 
 Finally, we normalize each particle's weight, ensuring they all add up to 1. 
@@ -64,7 +72,7 @@ After completing state estimation of the Neato, we resample our particles by sel
 
 ### Implementation Design
 
-#### Design Decision 1: Particle Resampling
+#### Particle Resampling
 One key design decision that we made was to use a Gaussian KDE to generate a new set of N particles. Initially, we used the calculated weights as a probability distribution to generate a new set of N particles. While this solution partially worked, we saw that the resampled particle cloud became too noisy–which caused the Neato to inaccurately estimate its position. 
 
 To reduce noise, we then decided to generalize the distribution of particle weights into a Gaussian distribution, utilizing the mean and standard deviation of the particle weights. However, dynamically controlling the shape of the Gaussian distribution through standard deviation became a non-trivial problem. When we used the actual standard deviation of the weights, the resampling method created too much noise, but when we constrained the standard deviation to a smaller value, we found that the Neato would estimate the wrong pose and move in the wrong direction. We also tried to use a Gamma distribution – but equally, we came across issues tuning the alpha and beta parameters. 

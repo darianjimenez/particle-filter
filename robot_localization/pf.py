@@ -311,6 +311,15 @@ class ParticleFilter(Node):
             )
 
     def calculate_gaussian(self, weights):
+        """Helper function to calculate gaussian distribution. Takes in
+        a list of weights and generates new set of weights based on fitted
+        gaussian distribution
+
+        Args:
+            weights: list of particle weights
+        Returns:
+            gaussian_distribution: list of particle weights (based on )
+        """
         print(f"The sum of weights is: {sum(weights)}")
         weights_mean = np.mean(weights)
         weights_sd = np.std(weights, ddof=1)
@@ -323,35 +332,6 @@ class ParticleFilter(Node):
         )
 
         return gaussian_distribution
-
-    def calculate_gamma(self, weights):
-        print(f"The sum of weights is: {sum(weights)}")
-        weights_mean = np.mean(weights)
-        weights_sd = np.std(weights, ddof=1) / 100
-
-        alpha = (weights_mean / weights_sd) ** 2
-        scale = (weights_sd**2) / weights_mean
-
-        gamma_distribution = stats.gamma.rvs(
-            a=alpha, scale=scale, size=self.n_particles
-        )
-
-        print(
-            f"The mean of the gamma weights is: {weights_mean} and the standard deviation is: {weights_sd} "
-        )
-
-        return gamma_distribution
-
-    def calculate_gamma_weights(self, weighted_mean, weighted_std):
-        alpha = (weighted_mean / weighted_std) ** 2
-        scale = (weighted_std**2) / weighted_mean
-
-        return alpha, scale
-
-    def gaussian_kde_sample(self, particles_dim, weights):
-        kde = gaussian_kde(particles_dim, bw_method="scott", weights=weights)
-        new_particles_dim = kde.resample(size=self.n_particles)
-        return new_particles_dim
 
     def resample_particles_v2(self):
         """Resample the particles according to particle weights. We used the

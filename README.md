@@ -83,7 +83,7 @@ The 7 tests we implemented are:
 - Zero-Weight Handling: Tested if the normalization function distributes equal weights when all weights are zero.
 - Rotation: Verified that a 90-degree rotation updates a particle's orientation, but not position 
 - Resampling: Verified that resampling generates 400 particles and favors the particle with the highest weight (all resampled particles should come from first particle with a weight of 1, all others have a weight of 0)
-- 
+
 These tests were very helpful in testing if the math was correct and actually helped us realize our initial KDE resampling implementation was incorrect since it failed the resampling unit test. Combining these tests with simulation and bagfile testing allowed us to properly implement our particle filter
 
 ## Experimental Design

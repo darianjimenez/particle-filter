@@ -45,7 +45,7 @@ For example, when we initially tested our normal distribution algorithm, we quic
 
 However, once we successfully validated an algorithm (as seen below), we moved onto the next step, which was to test on a map from the MAC (specifically `maps/mac_1st_floor_final.yaml`).  
 
-![Better Particle Filter](better_particle_filter.gif)
+![Better Particle Filter](final_gauntlet.gif)
 
 Instead of using Gazebo simulation, we used the recorded bagfiles and launched rviz2 to see where the Neato evaluated its position in the MAC. Below, we’ve included our current particle filter example using `macfirst_floor_take_1` bagfile.
 

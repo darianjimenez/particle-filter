@@ -175,7 +175,7 @@ class ParticleFilter(Node):
 
         You do not need to modify this function, but it is helpful to understand it.
         """
-        self.move_robot()
+        # self.move_robot()
         # msg2 = Twist()
         if self.scan_to_process is None:
             return

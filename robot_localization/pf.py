@@ -97,7 +97,7 @@ class ParticleFilter(Node):
 
         self.xy_noise = 0.30  # meters, spread of starting cloud w/ noise
         self.theta_noise = 0.05  # radians
-        self.laser_sigma = 0.5  # meters, how far can beam miss
+        self.laser_sigma = 0.25  # meters, how far can beam miss --> adjust
 
         # Noise for movement updates
         self.motion_xy_noise = 0.03
@@ -387,7 +387,7 @@ class ParticleFilter(Node):
         regime3 = int(self.n_particles / 8)
 
         particles_slice_1 = sorted_particles[0 : regime1 - 1]
-        particles_slice_2 = sorted_particles[regime1 : (regime1 + regime2) - 1]
+        particles_slice_2 = sorted_particles[regime1:] # fix removing best particle
         # particles_slice_3 = sorted_particles[
         #     (regime1 + regime2) : (regime1 + regime2 + regime3) - 1
         # ]
@@ -518,7 +518,7 @@ class ParticleFilter(Node):
         """
         for p in self.particle_cloud:
             p.w = 0.0
-            for i in range(0, len(r)):  # use every 10th bean
+            for i in range(0, len(r), 5): # Adjust num of beams used
                 if not math.isfinite(r[i]) or r[i] <= 0:
                     continue  # skip bad recordings
                 end_x = p.x + r[i] * math.cos(p.theta + theta[i])

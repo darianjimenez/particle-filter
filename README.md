@@ -71,8 +71,6 @@ To reduce noise, we then decided to generalize the distribution of particle weig
 
 We then contemplated a probability distribution that could accurately represent multimodality in a distribution and didn’t rely on parametric tuning. Upon deeper research, we found the Gaussian Kernel Estimation algorithm, which could dynamically represent the shape of a distribution. We also realized that we could manually resample data from the calculated particle weights. So, we introduced a preprocessing step that would sort the particles by weight and randomly choose from the 50 best weights. After this preprocessing step, we applied a Gaussian KDE function to create a probability distribution and then generate 400 new particles from the distribution. Immediately after testing this algorithm, we found that this new implementation allowed our particle filter to represent Neato position in high fidelity. 
 
-### Weights Calculation (Pending)
-
 ## Unit Test Design and Integration
 To test our particle filter, we created 7 unit tests with pytest. To make them easy to run without having to launch the whole ROS2 environment, we created a particle filter object and used a fake transform to simulate coordinate transformations.
 We also disabled movement noise during the odometry tests so that we could compare particle positions against exact expected values.

@@ -175,7 +175,7 @@ class ParticleFilter(Node):
 
         You do not need to modify this function, but it is helpful to understand it.
         """
-        # self.move_robot()
+        self.move_robot()
         # msg2 = Twist()
         if self.scan_to_process is None:
             return
@@ -353,61 +353,10 @@ class ParticleFilter(Node):
         new_particles_dim = kde.resample(size=self.n_particles)
         return new_particles_dim
 
-    def resample_particles(self):
-
-        self.normalize_particles()
-        weights = [p.w for p in self.particle_cloud]
-        self.particle_cloud = draw_random_sample(
-            self.particle_cloud, weights, self.n_particles
-        )
-        best = max(self.particle_cloud, key=lambda p: p.w)
-        # xy_noise = 0.01
-        # theta_noise = 0.01
-
-        self.particle_cloud.clear()
-
-        for i in range(self.n_particles):
-            p_x = best.x + np.random.normal(self.xy_noise)
-            p_y = best.y + np.random.normal(self.xy_noise)
-            p_theta = best.theta + np.random.normal(self.theta_noise)
-            self.particle_cloud.append(Particle(x=p_x, y=p_y, theta=p_theta))
-
-        # self.particle_cloud = new_particles
-
-        for p in self.particle_cloud:
-            p.w = 1.0
-
-        self.normalize_particles()
-
-    def sampling_strategy(self):
-        sorted_particles = sorted(self.particle_cloud, key=lambda p: p.w)
-
-        regime1 = int(self.n_particles * 0.75)
-        regime2 = int(self.n_particles - regime1)
-        regime3 = int(self.n_particles / 8)
-
-        particles_slice_1 = sorted_particles[0 : regime1 - 1]
-        particles_slice_2 = sorted_particles[regime1:] # fix removing best particle
-        # particles_slice_3 = sorted_particles[
-        #     (regime1 + regime2) : (regime1 + regime2 + regime3) - 1
-        # ]
-
-        particles_r_1 = random.choices(
-            particles_slice_1,
-            k=20,
-        )
-        particles_r_2 = random.choices(
-            particles_slice_2,
-            k=50,
-        )
-        # particles_r_3 = random.choices(
-        #     particles_slice_3,
-        #     k=60,
-        # )
-
-        return particles_slice_2
-
     def resample_particles_v2(self):
+        """Resample the particles according to particle weights. We used the
+        weights stored with each particle should define the probability
+        that a particular particle is selected in the resampling step."""
         self.normalize_particles()
         weights = [p.w for p in self.particle_cloud]
         self.particle_cloud = draw_random_sample(
@@ -417,108 +366,6 @@ class ParticleFilter(Node):
         for p in self.particle_cloud:
             p.w = 1.0 / self.n_particles
 
-        # oversampled_particle_cloud = self.sampling_strategy()
-        # weights = np.asarray([p.w for p in oversampled_particle_cloud])
-        # particles_x = np.asarray([p.x for p in oversampled_particle_cloud])
-        # particles_y = np.asarray([p.y for p in oversampled_particle_cloud])
-        # particles_theta = np.asarray([p.theta for p in oversampled_particle_cloud])
-
-        # new_particles_x = list(self.gaussian_kde_sample(particles_x, weights))
-        # new_particles_y = list(self.gaussian_kde_sample(particles_y, weights))
-        # new_particles_theta = list(self.gaussian_kde_sample(particles_theta, weights))
-
-        # print(new_particles_x)
-
-        # self.particle_cloud.clear()
-        # for i in range(self.n_particles):
-        #     print(f"i is currentl {i}")
-        #     p_x = new_particles_x[0][i]
-        #     p_y = new_particles_y[0][i]
-        #     p_theta = new_particles_theta[0][i]
-
-        #     self.particle_cloud.append(Particle(x=p_x, y=p_y, theta=p_theta))
-
-        # self.normalize_particles()
-
-    def resample_particles_failed(self):
-        """Resample the particles according to the new particle weights.
-        The weights stored with each particle should define the probability that a particular
-        particle is selected in the resampling step. You may want to make use of the given
-        helper function draw_random_sample in helper_functions.py.
-        """
-        # make sure the distribution is normalized
-        self.normalize_particles()
-        # TODO: fill out the rest of the implementation
-
-        # pseudocode implementation
-        # 1. get each list as a numpy array
-        # 2. do dot product of weights and each value
-        # 3. find standard deviation
-
-        # get lists of particles
-        weights = np.asarray([p.w for p in self.particle_cloud])
-        particles_x = np.asarray([p.x for p in self.particle_cloud])
-        particles_y = np.asarray([p.y for p in self.particle_cloud])
-        particles_theta = np.asarray([p.theta for p in self.particle_cloud])
-
-        # transform theta array to positive
-        particles_theta = particles_theta % (np.pi * 2)
-
-        # calculate mean
-        particles_x_mean = np.dot(weights, particles_x)
-        particles_y_mean = np.dot(weights, particles_y)
-        particles_theta_mean = np.dot(weights, particles_theta)
-
-        # calculate std deviation
-        particles_x_weighted_std = np.sqrt(
-            np.average((particles_x - particles_x_mean) ** 2, weights=weights)
-        )
-        particles_y_weighted_std = np.sqrt(
-            np.average((particles_y - particles_y_mean) ** 2, weights=weights)
-        )
-        particles_theta_weighted_std = np.sqrt(
-            np.average((particles_theta - particles_theta_mean) ** 2, weights=weights)
-        )
-
-        particles_x_alpha, particles_x_scale = self.calculate_gamma_weights(
-            particles_x_mean, particles_x_weighted_std
-        )
-        particles_y_alpha, particles_y_scale = self.calculate_gamma_weights(
-            particles_y_mean, particles_y_weighted_std
-        )
-        particles_theta_alpha, particles_theta_scale = self.calculate_gamma_weights(
-            particles_theta_mean, particles_theta_weighted_std
-        )
-
-        print(
-            f"alpha values: \n    x: {particles_x_alpha}, y: {particles_y_alpha}, z: {particles_theta_alpha}"
-        )
-        print(
-            f"scale values: \n    x: {particles_x_scale}, y: {particles_y_scale}, z: {particles_theta_scale}"
-        )
-
-        self.particle_cloud.clear()
-
-        for i in range(self.n_particles):
-            x = np.random.normal(particles_x_mean, particles_x_weighted_std)
-            y = np.random.normal(particles_y_mean, particles_y_weighted_std)
-            theta = np.random.normal(particles_theta_mean, particles_theta_weighted_std)
-            self.particle_cloud.append(Particle(x, y, theta))
-
-        self.normalize_particles()
-
-        # print(f"original weights: {weights}")
-        # print(self.particle_cloud)
-        # print(f"The theta particles are {particles_theta}")
-        # self.particle_cloud = draw_random_sample(
-        #     self.particle_cloud, weights, self.n_particles
-        # )
-
-        # weights = [p.w for p in self.particle_cloud]
-        # print(f"original weights: {weights}")
-        # for p in self.particle_cloud:
-        #     p.w = 1.0
-
     def update_particles_with_laser(self, r, theta):
         """Updates the particle weights in response to the scan data
         r: the distance readings to obstacles
@@ -526,7 +373,7 @@ class ParticleFilter(Node):
         """
         for p in self.particle_cloud:
             p.w = 0.0
-            for i in range(0, len(r), 5): # Adjust num of beams used
+            for i in range(0, len(r), 5):  # Adjust num of beams used
                 if not math.isfinite(r[i]) or r[i] <= 0:
                     continue  # skip bad recordings
                 end_x = p.x + r[i] * math.cos(p.theta + theta[i])
